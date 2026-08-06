@@ -6,16 +6,13 @@ export abstract class BaseScene {
   private screenWidth = 0;
   private screenHeight = 0;
 
-  async mount(
-    host: HTMLElement,
-    overlays: Container[] = [],
-  ): Promise<void> {
+  async mount(host: HTMLElement, overlays: Container[] = []): Promise<void> {
     await this.app.init({
       background: "#101522",
       resizeTo: host,
       antialias: true,
       autoDensity: true,
-      resolution: Math.min(window.devicePixelRatio, 2),
+      resolution: window.devicePixelRatio,
     });
     host.appendChild(this.app.canvas);
     this.app.stage.addChild(this.root);

@@ -29,7 +29,7 @@ const SCENE_CONFIG = {
   boardTop: 210,
   reelWidth: 100,
   reelHeight: 87,
-  reelGap: 7,
+  reelGap: 6.5,
   rowGap: 2,
   reelLeft: 2,
   reelTop: 2,
@@ -44,6 +44,7 @@ export class SlotScene extends BaseScene {
   private readonly board = new Container();
   private readonly reelsLayer = new Container();
   private readonly reelsMask = new Graphics();
+  private readonly winSymbolsLayer = new Container();
   private readonly reelContainers: Container[] = [];
   private readonly reelBlurs: BlurFilter[] = [];
   private readonly reelSymbols: Sprite[][] = [];
@@ -107,7 +108,7 @@ export class SlotScene extends BaseScene {
       reelLeft,
       reelTop,
     } = SCENE_CONFIG;
-    this.board.addChild(this.reelsLayer, this.reelsMask);
+    this.board.addChild(this.reelsLayer, this.reelsMask, this.winSymbolsLayer);
     this.reelsLayer.mask = this.reelsMask;
 
     for (let column = 0; column < 5; column++) {
@@ -207,16 +208,16 @@ export class SlotScene extends BaseScene {
   private async loadImages(): Promise<void> {
     const [background, frame, a, k, q, j, ten, scarab, anubis, pharaoh] =
       await Promise.all([
-        Assets.load("/bg.png"),
-        Assets.load("/egypt-slot-machine.png"),
-        Assets.load("/symbols/a.png"),
-        Assets.load("/symbols/k.png"),
-        Assets.load("/symbols/q.png"),
-        Assets.load("/symbols/j.png"),
-        Assets.load("/symbols/10.png"),
-        Assets.load("/symbols/scarab.png"),
-        Assets.load("/anubis.png"),
-        Assets.load("/pharaoh.png"),
+        this.loadSmoothTexture("/bg.webp"),
+        this.loadSmoothTexture("/slot-machine.webp"),
+        this.loadSmoothTexture("/symbols/a.webp"),
+        this.loadSmoothTexture("/symbols/k.webp"),
+        this.loadSmoothTexture("/symbols/q.webp"),
+        this.loadSmoothTexture("/symbols/j.webp"),
+        this.loadSmoothTexture("/symbols/10.webp"),
+        this.loadSmoothTexture("/symbols/scarab.webp"),
+        this.loadSmoothTexture("/symbols/anubis.webp"),
+        this.loadSmoothTexture("/symbols/pharaoh.webp"),
       ]);
     this.landscapeBackground.texture = background;
     this.backgroundWidth = 0;
@@ -235,10 +236,18 @@ export class SlotScene extends BaseScene {
       anubis,
       pharaoh,
     };
-    Object.values(this.symbolTextures).forEach((texture) => {
-      texture.source.scaleMode = "linear";
-    });
     this.renderAllReels();
+  }
+
+  private loadSmoothTexture(src: string): Promise<Texture> {
+    return Assets.load<Texture>({
+      src,
+      data: {
+        autoGenerateMipmaps: true,
+        scaleMode: "linear",
+        maxAnisotropy: 8,
+      },
+    });
   }
 
   private draw(symbols: string[][]): void {
@@ -378,9 +387,20 @@ export class SlotScene extends BaseScene {
   private showWinningSymbols(result: SpinResult): void {
     this.resetWinningSymbols();
     this.highlightElapsed = 0;
-    this.winningSymbols = result.winningPositions.map(
-      ({ row, column }) => this.reelSymbols[column][row + 1],
-    );
+    this.winningSymbols = result.winningPositions.map(({ row, column }) => {
+      const source = this.reelSymbols[column][row + 1];
+      const symbol = new Sprite(source.texture);
+
+      symbol.anchor.set(source.anchor.x, source.anchor.y);
+      symbol.position.set(
+        this.reelContainers[column].x + source.x,
+        source.y,
+      );
+      symbol.scale.set(source.scale.x, source.scale.y);
+      this.symbolScales.set(symbol, source.scale.x);
+      this.winSymbolsLayer.addChild(symbol);
+      return symbol;
+    });
   }
 
   private updateHighlights(deltaMs: number): void {
@@ -390,16 +410,15 @@ export class SlotScene extends BaseScene {
       this.highlightElapsed / this.winHighlightDuration,
       1,
     );
-    const scale = 1 + Math.sin(progress * Math.PI) ** 2 * 0.03;
+    const scale = 1 + Math.sin(progress * Math.PI * 2) ** 2 * 0.1;
     this.winningSymbols.forEach((symbol) => {
       symbol.scale.set((this.symbolScales.get(symbol) ?? 1) * scale);
     });
   }
 
   private resetWinningSymbols(): void {
-    this.winningSymbols.forEach((symbol) => {
-      symbol.scale.set(this.symbolScales.get(symbol) ?? 1);
-    });
+    this.winningSymbols.forEach((symbol) => symbol.destroy());
+    this.winSymbolsLayer.removeChildren();
     this.winningSymbols = [];
   }
 }
